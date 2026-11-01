@@ -1,0 +1,52 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Users collection - only the user can read/write their own document
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+
+    // Workers/Providers collection - public read, own write
+    match /workers/{workerId} {
+      allow read: if true;
+      allow write: if request.auth != null && request.auth.uid == workerId;
+    }
+
+    // Services collection - public read, authenticated write
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+
+    // Job Requests/Bookings collection
+    match /jobRequests/{requestId} {
+      allow read, write: if request.auth != null && (
+        resource.data.userEmail == request.auth.token.email ||
+        resource.data.providerEmail == request.auth.token.email
+      );
+      // Allow reading all job requests (for admin/provider dashboards)
+      allow list: if request.auth != null;
+    }
+
+    // Bookings collection (alternative to jobRequests)
+    match /bookings/{bookingId} {
+      allow read: if request.auth != null && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.professionalId == request.auth.uid
+      );
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null && (
+        resource.data.customerId == request.auth.uid ||
+        resource.data.professionalId == request.auth.uid
+      );
+    }
+
+    // Reviews collection - public read, authenticated write
+    match /reviews/{reviewId} {
+      allow read: if true;
+      allow create: if request.auth != null;
+      allow update, delete: if request.auth != null;
+    }
+  }
+}

@@ -21,3 +21,20 @@
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
+# Local assistant and editor configuration
+/.claude/
+/.cursor/
+
+# Local planning and design documents
+/DESIGN.md
+/PRODUCT.md
+/HomeCareConnect Project Plan.md
+
+# Orphaned CSS files (no import in any JSX)
+src/Pages/ProviderRegister/ProviderRegister.css
+src/Pages/home/Home.css
+
+# Security: Never commit actual secrets
+# Keep .env files local - they contain sensitive credentials
+.env

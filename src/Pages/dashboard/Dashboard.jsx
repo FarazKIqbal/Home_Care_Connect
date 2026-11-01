@@ -1,70 +1,67 @@
 import React, { useState, useEffect } from 'react';
-import { Home, HelpCircle, User, LogOut } from 'lucide-react';
-import { useNavigate } from "react-router-dom";
-import { db } from '../../firebase'; // Ensure you have your Firebase setup correctly
-import { collection, addDoc, getDoc, doc } from 'firebase/firestore';
-import { getAuth, onAuthStateChanged } from "firebase/auth"; // Use Firebase Auth
+import { Home, HelpCircle, User, LogOut, Trash2 } from 'lucide-react';
+import { useNavigate, useLocation } from "react-router-dom";
+import { db } from '../../firebase';
+import { collection, query, where, getDocs, addDoc, doc, getDoc } from 'firebase/firestore';
+import { getAuth, onAuthStateChanged, signOut } from "firebase/auth";
 
-const workers = [
-  { 
-    id: 1, 
-    name: 'John Smith', 
-    email: 'johnsmith@gmail.com', 
-    rating: 4.8, 
-    phone: '9876543210', 
-    about: 'John is a skilled plumber with over 6 years of experience in various plumbing services.',
-    image: 'https://www.shutterstock.com/image-photo/portrait-african-black-worker-standing-600nw-2114436797.jpg'
-  },
-  { 
-    id: 2, 
-    name: 'Emily Johnson', 
-    email: 'emilyjohnson@gmail.com', 
-    rating: 4.9, 
-    phone: '8765432109', 
-    about: 'Emily specializes in plumbing installations and repairs, ensuring everything runs smoothly.',
-    image: 'https://media.istockphoto.com/id/1430852855/photo/happy-engineer-construction-worker-or-architect-woman-feeling-proud-and-satisfied-with-career.jpg?s=612x612&w=0&k=20&c=GHed-u9xlIYefGqLp4jgiN0J5H_kvNOrUQXkL08xUoc='
-  },
-  { 
-    id: 3, 
-    name: 'Michael Brown', 
-    email: 'michaelbrown@gmail.com', 
-    rating: 4.7, 
-    phone: '7654321098', 
-    about: 'Michael is known for his expertise in plumbing maintenance and troubleshooting.',
-    image: 'https://www.familyhandyman.com/wp-content/uploads/2021/03/woman-construction-worker-GettyImages-463207617.jpg'
-  },
-];
-
-export default function UserDashboard() {
+export default function Dashboard() {
+  const [workers, setWorkers] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [selectedWorker, setSelectedWorker] = useState(null);
   const [bookingDate, setBookingDate] = useState('');
   const [bookingTime, setBookingTime] = useState('');
   const [location, setLocation] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [currentUser, setCurrentUser] = useState(null); // Store authenticated user
+  const [currentUser, setCurrentUser] = useState(null);
+  const [showModal, setShowModal] = useState(false);
   const navigate = useNavigate();
-  
+  const locationHook = useLocation();
+  const isActive = (path) => locationHook.pathname === path;
   const auth = getAuth();
 
-  // Listen for user authentication state changes
+  const SERVICE_NAME = 'cleaning';
+  const SERVICE_LABEL = 'Cleaners';
+  const SERVICE_DESC = 'Find and book trusted cleaning professionals';
+  const EMPTY_TITLE = 'No cleaners available';
+  const LOADING_TEXT = 'Loading cleaners...';
+  const SIDEBAR_FROM = 'from-violet-700';
+  const SIDEBAR_TO = 'to-violet-800';
+  const SIDEBAR_BORDER = 'border-violet-600';
+  const AVATAR_GRADIENT = 'from-violet-400 to-purple-500';
+  const MODAL_GRADIENT = 'from-violet-600 to-purple-600';
+  const BUTTON_COLOR = 'bg-violet-600 hover:bg-violet-700';
+  const FOCUS_RING = 'focus:border-violet-500 focus:ring-violet-100';
+
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       if (user) {
-        setCurrentUser(user); // Store the authenticated user
+        setCurrentUser(user);
+        loadWorkers();
       } else {
-        setCurrentUser(null); // Clear user data if not authenticated
+        navigate('/login/UserLogin');
       }
     });
-    return () => unsubscribe(); // Clean up the listener on component unmount
-  }, [auth]);
+    return () => unsubscribe();
+  }, [auth, navigate]);
+
+  const loadWorkers = async () => {
+    try {
+      const q = query(collection(db, 'workers'), where('service', '==', SERVICE_NAME));
+      const snapshot = await getDocs(q);
+      setWorkers(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    } catch (error) {
+      console.error("Error loading workers:", error);
+      setErrorMessage("Failed to load providers");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const openModal = (worker) => {
     setSelectedWorker(worker);
-  };
-
-  const closeModal = () => {
-    setSelectedWorker(null);
+    setShowModal(true);
     setBookingDate('');
     setBookingTime('');
     setLocation('');
@@ -72,164 +69,202 @@ export default function UserDashboard() {
     setErrorMessage('');
   };
 
+  const closeModal = () => {
+    setShowModal(false);
+    setSelectedWorker(null);
+  };
+
   const confirmBooking = async () => {
     if (!currentUser) {
       setErrorMessage('You must be logged in to book a service.');
       return;
     }
-
+    if (!bookingDate || !bookingTime || !location) {
+      setErrorMessage('Please fill in all fields');
+      return;
+    }
     try {
-      // Fetch user information from Firestore
-      const userDocRef = doc(db, 'users', currentUser.uid); // Assuming 'users' collection in Firestore
-      const userDoc = await getDoc(userDocRef);
-      
-      if (!userDoc.exists()) {
-        setErrorMessage('User not found.');
-        return;
-      }
-
-      const userData = userDoc.data();
-
-      // Booking info
-      const bookingInfo = {
+      const userDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      const userData = userDoc.data() || {};
+      await addDoc(collection(db, 'jobRequests'), {
+        userId: currentUser.uid,
         username: userData.username || "User",
         userEmail: userData.email || currentUser.email,
-        phoneNumber: userData.phoneNumber || currentUser.phoneNumber || "N/A",
-        bookingDate,
-        bookingTime,
-        location,
-        providerEmail: selectedWorker.email, // Provider email
-      };
-
-      // Save booking info to Firestore under 'jobRequests' collection
-      const bookingsCollection = collection(db, 'jobRequests');
-      await addDoc(bookingsCollection, bookingInfo);
-
-      setSuccessMessage(`Booking successful for ${selectedWorker.name} on ${bookingDate} at ${bookingTime}!`);
-
-      // Delay closing the modal
-      setTimeout(() => {
-        closeModal();
-      }, 2000);
-
+        phoneNumber: userData.phoneNumber || "N/A",
+        bookingDate, bookingTime, location,
+        providerId: selectedWorker.id,
+        providerName: selectedWorker.fullName,
+        providerEmail: selectedWorker.email,
+        service: SERVICE_NAME,
+        status: 'pending',
+        createdAt: new Date().toISOString()
+      });
+      setSuccessMessage(`Booking confirmed with ${selectedWorker.fullName}!`);
+      setTimeout(() => closeModal(), 2000);
     } catch (error) {
-      console.error("Error confirming booking:", error);
-      setErrorMessage('An error occurred while confirming your booking. Please try again.');
+      console.error("Error booking:", error);
+      setErrorMessage('Failed to book. Please try again.');
     }
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/login/UserLogin');
+  };
+
+  const minDate = new Date().toISOString().split('T')[0];
+
   return (
-    <div className="flex h-screen bg-gray-100">
+    <div className="flex h-screen bg-gray-50">
       {/* Sidebar */}
-      <aside className="w-64 bg-[#4B49AC] text-white transition-colors duration-300 ease-in-out hover:bg-[#3f3e91]">
-        <div className="p-4">
-          <h2 className="text-2xl font-bold">Home Care Connect</h2>
+      <aside className={`w-64 bg-gradient-to-b ${SIDEBAR_FROM} ${SIDEBAR_TO} text-white flex flex-col`}>
+        <div className={`p-6 border-b ${SIDEBAR_BORDER}`}>
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+              <Home className="h-6 w-6" />
+            </div>
+            <span className="text-xl font-bold">Home Care Connect</span>
+          </div>
         </div>
-        <nav className="mt-8">
-          {['Home', 'Dashboard', 'Help', 'Profile', 'Logout'].map((item, index) => (
-            <a
-              key={index}
-              href="#"
-              onClick={() => {
-                if (index === 0) {
-                  navigate('/'); // Redirect to home
-                } else if(index === 1){
-                    navigate('/dashboard/UserDashboard');
-                } else if(index === 2){
-                    navigate('/help');
-                } else if(index === 3){
-                    navigate('/dashboard/UserProfile');
-                } else if(index === 4){
-                    navigate('/');
-                }
-              }}
-              className="flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-[#7978E9] hover:translate-x-1"
+        <nav className="flex-1 p-4 space-y-1">
+          {[
+            { icon: Home, label: 'Dashboard', path: '/dashboard/Dashboard' },
+            { icon: HelpCircle, label: 'Help', path: '/UserRegister/CustomerHelp' },
+            { icon: User, label: 'Profile', path: '/dashboard/UserProfile' },
+          ].map((item) => (
+            <button
+              key={item.label}
+              onClick={() => navigate(item.path)}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(item.path) ? 'bg-white/15' : 'hover:bg-white/10'}`}
             >
-              {index === 0 && <Home className="mr-2" size={20} />}
-              {index === 1 && <User className="mr-2" size={20} />}
-              {index === 2 && <HelpCircle className="mr-2" size={20} />}
-              {index === 3 && <User className="mr-2" size={20} />}
-              {index === 4 && <LogOut className="mr-2" size={20} />}
-              {item}
-            </a>
+              <item.icon className="h-5 w-5" />
+              {item.label}
+            </button>
           ))}
+          <button
+            onClick={handleLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-300 hover:bg-red-500/20 transition-all mt-8"
+          >
+            <LogOut className="h-5 w-5" />
+            Logout
+          </button>
         </nav>
       </aside>
 
-      {/* Main content */}
+      {/* Main Content */}
       <div className="flex-1 flex flex-col overflow-hidden">
-        {/* Navbar */}
-        <header className="flex items-center justify-between p-4 bg-white shadow-md">
-          <div className="flex items-center">
-            <Home className="text-[#4B49AC]" size={24} />
-            <h1 className="ml-2 text-xl font-semibold text-[#4B49AC]">Home Care Connect</h1>
+        <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Available {SERVICE_LABEL}</h1>
+            <p className="text-sm text-gray-500 mt-1">{SERVICE_DESC}</p>
           </div>
-          <div className="w-10 h-10 rounded-full bg-[#98BDFF] flex items-center justify-center transition-colors duration-300 ease-in-out hover:bg-[#7DA0FA]">
-            <User className="text-white" size={20} />
+          <div className="flex items-center gap-4">
+            {currentUser && (
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{currentUser.email}</p>
+                <p className="text-xs text-gray-500">Customer</p>
+              </div>
+            )}
+            <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
+              <User className="h-5 w-5 text-violet-600" />
+            </div>
           </div>
         </header>
 
-        {/* Dashboard content */}
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
-          <h2 className="text-2xl font-semibold text-gray-800 mb-6">Available Plumbers</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {workers.map((worker) => (
-              <div key={worker.id} className="bg-white rounded-lg shadow-lg overflow-hidden transition-all duration-300 hover:shadow-xl hover:-translate-y-1">
-                <div className="p-6">
-                  <div className="w-32 h-32 mx-auto mb-4 rounded-full overflow-hidden border-4 border-[#7978E9] transition-all duration-300 hover:border-[#4B49AC]">
-                    <img src={worker.image} alt={worker.name} className="w-full h-full object-cover" />
+        <main className="flex-1 overflow-y-auto p-6">
+          {loading ? (
+            <div className="flex items-center justify-center h-64">
+              <div className="text-center">
+                <div className={`w-12 h-12 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-4`}></div>
+                <p className="text-gray-600">{LOADING_TEXT}</p>
+              </div>
+            </div>
+          ) : workers.length === 0 ? (
+            <div className="text-center py-20">
+              <Trash2 className="h-16 w-16 text-gray-300 mx-auto mb-4" />
+              <h3 className="text-xl font-semibold text-gray-900 mb-2">{EMPTY_TITLE}</h3>
+              <p className="text-gray-500">Check back later or contact support</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {workers.map((worker) => (
+                <div key={worker.id} className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all duration-300 overflow-hidden border border-gray-100">
+                  <div className="p-6">
+                    <div className="flex items-start gap-4 mb-4">
+                      <div className={`w-16 h-16 rounded-full bg-gradient-to-br ${AVATAR_GRADIENT} flex items-center justify-center text-white text-xl font-bold flex-shrink-0`}>
+                        {worker.fullName?.charAt(0) || 'C'}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h3 className="text-lg font-bold text-gray-900 truncate">{worker.fullName}</h3>
+                        <p className="text-sm text-gray-500">@{worker.username}</p>
+                      </div>
+                    </div>
+                    <p className="text-sm text-gray-600 mb-4 line-clamp-2">{worker.about || 'Professional cleaner'}</p>
+                    <p className="text-sm text-gray-500 mb-4 flex items-center gap-2">
+                      <svg className="h-4 w-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 5a2 2 0 012-2h3.28a1 1 0 01.948.684l1.498 4.493a1 1 0 01-.502 1.21l-2.257 1.13a11.042 11.042 0 005.516 5.516l1.13-2.257a1 1 0 011.21-.502l4.493 1.498a1 1 0 01.684.949V19a2 2 0 01-2 2h-1C9.716 21 3 14.284 3 6V5z" /></svg>
+                      <span className="truncate">{worker.phoneNumber || 'No phone listed'}</span>
+                    </p>
+                    <button
+                      onClick={() => openModal(worker)}
+                      className={`w-full py-3 text-white rounded-xl font-semibold transition-all hover:shadow-lg active:scale-95 ${BUTTON_COLOR}`}
+                    >
+                      Book Now
+                    </button>
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-800 mb-2">{worker.name}</h3>
-                  <p className="text-gray-600 mb-2">{worker.email}</p>
-                  <p className="text-gray-600 mb-4">Rating: {worker.rating}/5</p>
-                  <button
-                    onClick={() => openModal(worker)}
-                    className="w-full bg-[#7DA0FA] text-white py-2 px-4 rounded transition-all duration-300 hover:bg-[#6a8fe3] hover:scale-105"
-                  >
-                    Book Now
-                  </button>
                 </div>
-              </div>
-            ))}
-          </div>
-
-          {/* Booking Modal */}
-          {selectedWorker && (
-            <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50">
-              <div className="bg-white rounded-lg shadow-lg p-6 w-96">
-                <h2 className="text-xl font-semibold mb-4">Book a Service with {selectedWorker.name}</h2>
-                <label className="block mb-2">Date:</label>
-                <input
-                  type="date"
-                  value={bookingDate}
-                  onChange={(e) => setBookingDate(e.target.value)}
-                  className="border border-gray-300 rounded-lg p-2 w-full mb-4"
-                />
-                <label className="block mb-2">Time:</label>
-                <input
-                  type="time"
-                  value={bookingTime}
-                  onChange={(e) => setBookingTime(e.target.value)}
-                  className="border border-gray-300 rounded-lg p-2 w-full mb-4"
-                />
-                <label className="block mb-2">Location:</label>
-                <input
-                  type="text"
-                  value={location}
-                  onChange={(e) => setLocation(e.target.value)}
-                  className="border border-gray-300 rounded-lg p-2 w-full mb-4"
-                />
-                {successMessage && <p className="text-green-600 mb-2">{successMessage}</p>}
-                {errorMessage && <p className="text-red-600 mb-2">{errorMessage}</p>}
-                <div className="flex justify-end">
-                  <button onClick={closeModal} className="mr-2 text-gray-500">Cancel</button>
-                  <button onClick={confirmBooking} className="bg-[#4B49AC] text-white py-2 px-4 rounded">Confirm Booking</button>
-                </div>
-              </div>
+              ))}
             </div>
           )}
         </main>
       </div>
+
+      {/* Booking Modal */}
+      {showModal && selectedWorker && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
+            <div className={`bg-gradient-to-r ${MODAL_GRADIENT} px-6 py-4 flex items-center justify-between`}>
+              <h2 className="text-xl font-bold text-white">Book {SERVICE_LABEL}</h2>
+              <button onClick={closeModal} className="text-white/80 hover:text-white transition-colors">
+                <svg className="h-6 w-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-6 p-3 bg-violet-50 rounded-xl">
+                <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${AVATAR_GRADIENT} flex items-center justify-center text-white font-bold`}>
+                  {selectedWorker.fullName?.charAt(0)}
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{selectedWorker.fullName}</p>
+                  <p className="text-sm text-gray-500">{SERVICE_LABEL} Professional</p>
+                </div>
+              </div>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Booking Date</label>
+                  <input type="date" min={minDate} value={bookingDate} onChange={(e) => setBookingDate(e.target.value)}
+                    className={`w-full px-4 py-3 rounded-xl border border-gray-200 ${FOCUS_RING} outline-none transition-all`} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Preferred Time</label>
+                  <input type="time" value={bookingTime} onChange={(e) => setBookingTime(e.target.value)}
+                    className={`w-full px-4 py-3 rounded-xl border border-gray-200 ${FOCUS_RING} outline-none transition-all`} />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Service Location</label>
+                  <input type="text" value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Enter your address"
+                    className={`w-full px-4 py-3 rounded-xl border border-gray-200 ${FOCUS_RING} outline-none transition-all`} />
+                </div>
+              </div>
+              {errorMessage && <div className="mt-4 p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-sm">{errorMessage}</div>}
+              {successMessage && <div className="mt-4 p-3 bg-green-50 border border-green-200 rounded-xl text-green-700 text-sm">{successMessage}</div>}
+              <div className="flex gap-3 mt-6">
+                <button onClick={closeModal} className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all">Cancel</button>
+                <button onClick={confirmBooking} className={`flex-1 py-3 text-white rounded-xl font-semibold transition-all hover:shadow-lg ${BUTTON_COLOR}`}>Confirm Booking</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

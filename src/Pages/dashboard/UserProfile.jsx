@@ -1,15 +1,21 @@
 import React, { useState, useEffect } from 'react';
-import { Home, HelpCircle, User, LogOut } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
-import { auth, db } from '../../firebase';
-import { doc, getDoc } from 'firebase/firestore';
-import { onAuthStateChanged } from "firebase/auth";
-import pic from "../../images/pic.jpeg";
+import { Home, HelpCircle, User, LogOut, MapPin, Phone, Mail, Edit3, Check, X } from 'lucide-react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { db, auth } from '../../firebase';
+import { doc, getDoc, updateDoc } from 'firebase/firestore';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
-export default function UserProfile({ toggleProfile }) {
+export default function UserProfile() {
   const [userData, setUserData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [editMode, setEditMode] = useState(false);
+  const [formData, setFormData] = useState({});
+  const [saving, setSaving] = useState(false);
+  const [saveMsg, setSaveMsg] = useState('');
   const navigate = useNavigate();
+  const location = useLocation();
+
+  const isActive = (path) => location.pathname === path;
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -17,19 +23,20 @@ export default function UserProfile({ toggleProfile }) {
       if (user) {
         await fetchUserData(user);
       } else {
-        setUserData(null);
+        navigate('/login/UserLogin');
       }
       setLoading(false);
     });
-
     return () => unsubscribe();
-  }, []);
+  }, [navigate]);
 
   const fetchUserData = async (user) => {
     try {
       const userDoc = await getDoc(doc(db, 'users', user.uid));
       if (userDoc.exists()) {
-        setUserData(userDoc.data());
+        const data = userDoc.data();
+        setUserData(data);
+        setFormData({ fullName: data.fullName || '', phoneNumber: data.phoneNumber || '', location: data.location || '' });
       } else {
         console.error("User not found in Firestore.");
         setUserData(null);
@@ -40,67 +47,193 @@ export default function UserProfile({ toggleProfile }) {
     }
   };
 
-  return (
-    <div className="flex h-screen bg-gray-100">
-      <aside className="w-64 bg-[#4B49AC] text-white">
-        <div className="p-4">
-          <h2 className="text-2xl font-bold">Home Care Connect</h2>
-        </div>
-        <nav className="mt-8">
-          {['Home', 'Dashboard', 'Help', 'Profile', 'Logout'].map((item, index) => (
-            <a
-              key={index}
-              href="#"
-              onClick={() => {
-                if (index === 0) navigate('#');
-                if (index === 1) navigate('/dashboard/Dashboard');
-                if (index === 2) navigate('/UserRegister/CustomerHelp'); // Navigate to Customer Help page
-                if (index === 4) navigate('/');
-              }}
-              className="flex items-center px-4 py-2.5 text-sm font-medium transition-all duration-200 hover:bg-[#7978E9] hover:translate-x-1"
-            >
-              {index === 0 && <Home className="mr-2" size={20} />}
-              {index === 1 && <User className="mr-2" size={20} />}
-              {index === 2 && <HelpCircle className="mr-2" size={20} />}
-              {index === 3 && <User className="mr-2" size={20} />}
-              {index === 4 && <LogOut className="mr-2" size={20} />}
-              {item}
-            </a>
-          ))}
-        </nav>
-      </aside>
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/login/UserLogin');
+  };
 
+  const openEdit = () => {
+    setFormData({ fullName: userData.fullName || '', phoneNumber: userData.phoneNumber || '', location: userData.location || '' });
+    setEditMode(true);
+    setSaveMsg('');
+  };
+
+  const cancelEdit = () => {
+    setEditMode(false);
+    setFormData({});
+    setSaveMsg('');
+  };
+
+  const handleInputChange = (e) => {
+    setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    setSaveMsg('');
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      await updateDoc(doc(db, 'users', user.uid), {
+        fullName: formData.fullName,
+        phoneNumber: formData.phoneNumber,
+        location: formData.location,
+      });
+      setUserData(prev => ({ ...prev, ...formData }));
+      setEditMode(false);
+      setSaveMsg('Profile updated successfully!');
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      setSaveMsg('Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const navItems = [
+    { icon: User, label: 'Dashboard', path: '/dashboard/Dashboard' },
+    { icon: HelpCircle, label: 'Help', path: '/UserRegister/CustomerHelp' },
+    { icon: User, label: 'Profile', path: '/dashboard/UserProfile' },
+  ];
+
+  const sidebarNav = (
+    <aside className="w-64 bg-gradient-to-b from-violet-700 to-violet-800 text-white flex flex-col">
+      <div className="p-6 border-b border-violet-600">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <Home className="h-6 w-6" />
+          </div>
+          <span className="text-xl font-bold">Home Care Connect</span>
+        </div>
+      </div>
+      <nav className="flex-1 p-4 space-y-1">
+        {navItems.map((item) => (
+          <button key={item.label} onClick={() => navigate(item.path)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(item.path) ? 'bg-white/15' : 'hover:bg-white/10'}`}>
+            <item.icon className="h-5 w-5" />{item.label}
+          </button>
+        ))}
+        <button onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-300 hover:bg-red-500/20 transition-all mt-8">
+          <LogOut className="h-5 w-5" />Logout
+        </button>
+      </nav>
+    </aside>
+  );
+
+  if (loading) {
+    return (
+      <div className="flex h-screen bg-gray-50">
+        {sidebarNav}
+        <div className="flex-1 flex items-center justify-center">
+          <div className="text-center">
+            <div className="w-12 h-12 border-4 border-violet-200 border-t-violet-600 rounded-full animate-spin mx-auto mb-4"></div>
+            <p className="text-gray-600">Loading profile...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {sidebarNav}
       <div className="flex-1 flex flex-col overflow-hidden">
-        <main className="flex-1 overflow-x-hidden overflow-y-auto bg-gray-100 p-6">
-          <div className="bg-white rounded-lg shadow-lg p-6 mb-6 max-w-2xl mx-auto">
-            <h1 className="text-3xl font-bold text-center mb-6">User Profile</h1>
-            {loading ? (
-              <p className="text-gray-600 text-center">Loading user data...</p>
-            ) : userData ? (
-              <div className="flex flex-col items-center">
-                <img 
-                  src={`${pic}?height=128&width=128`} 
-                  alt="profile" 
-                  className="w-32 h-32 rounded-full border-4 border-[#4B49AC] mb-4 shadow-lg" 
-                />
-                <h2 className="text-2xl font-semibold text-gray-800 text-center">{userData.fullName}</h2>
-                <div className="flex flex-col w-full max-w-md space-y-4 mt-4">
-                  {[
-                    { label: 'Email', value: userData.email },
-                    { label: 'Username', value: userData.username },
-                    { label: 'Location', value: userData.location },
-                    { label: 'Phone Number', value: userData.phoneNumber }
-                  ].map((item, index) => (
-                    <div key={index} className="flex items-center border-b border-gray-200 pb-2">
-                      <span className="text-gray-600 font-medium w-1/3">{item.label}:</span>
-                      <span className="text-gray-800 font-semibold flex-1">{item.value}</span>
+        <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
+          <h1 className="text-2xl font-bold text-gray-900">Your Profile</h1>
+          <div className="flex items-center gap-4">
+            {auth.currentUser && (
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{auth.currentUser.email}</p>
+                <p className="text-xs text-gray-500">Customer</p>
+              </div>
+            )}
+            <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
+              <User className="h-5 w-5 text-violet-600" />
+            </div>
+          </div>
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6">
+          <div className="max-w-2xl mx-auto">
+            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+              <div className="p-6 border-b border-gray-100">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-4">
+                    <div className="w-16 h-16 rounded-full bg-gradient-to-br from-violet-400 to-purple-500 flex items-center justify-center text-white text-2xl font-bold flex-shrink-0">
+                      {userData?.fullName?.charAt(0) || 'U'}
                     </div>
-                  ))}
+                    <div>
+                      <h2 className="text-xl font-bold text-gray-900">{userData?.fullName || 'User'}</h2>
+                      <p className="text-sm text-gray-500">Home Owner</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={editMode ? cancelEdit : openEdit}
+                    className="flex items-center gap-2 px-4 py-2 rounded-xl border border-gray-200 text-gray-600 hover:bg-gray-50 transition-all"
+                  >
+                    {editMode ? (
+                      <><X className="h-4 w-4" />Cancel</>
+                    ) : (
+                      <><Edit3 className="h-4 w-4" />Edit Profile</>
+                    )}
+                  </button>
                 </div>
               </div>
-            ) : (
-              <p className="text-gray-600 text-center">No user data found.</p>
-            )}
+
+              {editMode ? (
+                <div className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Full Name</label>
+                    <input type="text" name="fullName" value={formData.fullName} onChange={handleInputChange}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-violet-500 focus:ring-violet-100 outline-none transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Phone Number</label>
+                    <input type="tel" name="phoneNumber" value={formData.phoneNumber} onChange={handleInputChange}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-violet-500 focus:ring-violet-100 outline-none transition-all" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2">Location</label>
+                    <input type="text" name="location" value={formData.location} onChange={handleInputChange}
+                      className="w-full px-4 py-3 rounded-xl border border-gray-200 focus:border-violet-500 focus:ring-violet-100 outline-none transition-all" />
+                  </div>
+                  {saveMsg && (
+                    <p className={`text-sm ${saveMsg.includes('successfully') ? 'text-green-600' : 'text-red-600'}`}>{saveMsg}</p>
+                  )}
+                  <div className="flex gap-3 pt-2">
+                    <button onClick={cancelEdit} className="flex-1 py-3 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition-all">Cancel</button>
+                    <button onClick={handleSave} disabled={saving} className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white rounded-xl font-semibold transition-all hover:shadow-lg disabled:opacity-50 flex items-center justify-center gap-2">
+                      {saving ? <><div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>Saving...</> : <><Check className="h-4 w-4" />Save Changes</>}
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-6 space-y-6">
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <Mail className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Email (cannot change)</p>
+                      <p className="text-gray-900 font-medium truncate">{userData?.email}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <Phone className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</p>
+                      <p className="text-gray-900 font-medium">{userData?.phoneNumber || 'Not set'}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 p-4 bg-gray-50 rounded-xl">
+                    <MapPin className="h-5 w-5 text-gray-400 flex-shrink-0" />
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide">Location</p>
+                      <p className="text-gray-900 font-medium">{userData?.location || 'Not set'}</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
         </main>
       </div>

@@ -1,53 +1,66 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
-import { db, auth } from '../../firebase'; // Firebase Authentication and Firestore Database
-import { collection, getDocs } from 'firebase/firestore';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
+import { db } from '../../firebase';
+import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
+import { signOut } from 'firebase/auth';
+import { auth } from '../../firebase';
+import { Home, HelpCircle, User, LogOut, Briefcase, X, CheckCircle, XCircle } from 'lucide-react';
 
-const ProviderDashboard = () => {
+export default function ProviderDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
 
-  // State variables to manage job requests, availability, modal display, and previous bookings
   const [jobs, setJobs] = useState([]);
   const [isAvailable, setIsAvailable] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [previousBookings, setPreviousBookings] = useState([]);
-  const [providerEmail, setProviderEmail] = useState(null); // Store the logged-in provider's email
+  const [providerEmail, setProviderEmail] = useState(null);
 
-  // Fetch the current provider's email from Firebase Auth
+  const isActive = (path) => location.pathname === path;
+
   useEffect(() => {
-    const fetchProviderEmail = () => {
-      const currentUser = auth.currentUser; // Retrieve the current user from Firebase authentication
-      if (currentUser) {
-        setProviderEmail(currentUser.email); // Set the provider's email
-      } else {
-        console.error('No user is logged in');
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (!user) {
+        navigate('/login/ProviderLogin');
+        return;
       }
-    };
-    fetchProviderEmail(); // Call the function to fetch provider email
-  }, []);
+      setProviderEmail(user.email);
+      fetchAvailability(user.uid);
+    });
+    return () => unsubscribe();
+  }, [navigate]);
 
-  // Fetch job requests for the logged-in provider from Firestore
-  const fetchJobRequests = async () => {
+  const fetchAvailability = async (uid) => {
     try {
-      if (!providerEmail) return; // Ensure providerEmail is available before fetching job requests
-
-      const jobRequestsCollection = collection(db, 'jobRequests'); // Reference to Firestore collection 'jobRequests'
-      const jobRequestsSnapshot = await getDocs(jobRequestsCollection); // Fetch all job requests
-      const jobRequests = jobRequestsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data(), // Map the document data to an array
-      }));
-
-      // Filter jobs where the providerEmail matches the logged-in provider's email
-      const filteredJobs = jobRequests.filter(job => job.providerEmail === providerEmail);
-
-      setJobs(filteredJobs); // Set the filtered job requests in state
-    } catch (error) {
-      console.error('Error fetching job requests:', error);
+      const snap = await getDocs(collection(db, 'workers'));
+      const docSnap = snap.docs.find(d => d.id === uid);
+      if (docSnap) {
+        setIsAvailable(docSnap.data().isAvailable ?? true);
+      }
+    } catch (e) {
+      console.error('Error fetching availability:', e);
+    } finally {
+      setLoading(false);
     }
   };
 
-  // Add accepted job to previous bookings
+  const fetchJobRequests = useCallback(async () => {
+    try {
+      if (!providerEmail) return;
+      const jobRequestsCollection = collection(db, 'jobRequests');
+      const jobRequestsSnapshot = await getDocs(jobRequestsCollection);
+      const jobRequests = jobRequestsSnapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      }));
+      const filteredJobs = jobRequests.filter(job => job.providerEmail === providerEmail);
+      setJobs(filteredJobs);
+    } catch (error) {
+      console.error('Error fetching job requests:', error);
+    }
+  }, [providerEmail]);
+
   const fetchPreviousBookings = (acceptedJob) => {
     const booking = {
       name: acceptedJob.username,
@@ -58,141 +71,236 @@ const ProviderDashboard = () => {
       providerEmail: acceptedJob.providerEmail,
       userEmail: acceptedJob.userEmail,
     };
-
     setPreviousBookings((prev) => {
-      const updatedBookings = [...prev, booking]; // Add new booking to previous bookings
-      localStorage.setItem('previousBookings', JSON.stringify(updatedBookings)); // Save previous bookings to localStorage
-      return updatedBookings; // Return the updated array
+      const updatedBookings = [...prev, booking];
+      localStorage.setItem('previousBookings', JSON.stringify(updatedBookings));
+      return updatedBookings;
     });
   };
 
-  // Trigger fetching job requests when providerEmail changes (after it's available)
+  const handleAvailabilityToggle = async () => {
+    try {
+      const user = auth.currentUser;
+      if (!user) return;
+      const newAvailability = !isAvailable;
+      setIsAvailable(newAvailability);
+      await updateDoc(doc(db, 'workers', user.uid), { isAvailable: newAvailability });
+    } catch (error) {
+      console.error('Error updating availability:', error);
+    }
+  };
+
   useEffect(() => {
     if (providerEmail) {
-      fetchJobRequests(); // Fetch job requests when provider's email is set
+      fetchJobRequests();
     }
-  }, [providerEmail]);
+  }, [providerEmail, fetchJobRequests]);
 
-  // Handle accepting a booking, adding it to previous bookings and removing it from available jobs
   const acceptBooking = (index) => {
-    const acceptedJob = jobs[index]; // Get the accepted job from the jobs array
-    fetchPreviousBookings(acceptedJob); // Add to previous bookings
-
+    const acceptedJob = jobs[index];
+    fetchPreviousBookings(acceptedJob);
     setJobs((prev) => {
       const updatedJobs = [...prev];
-      updatedJobs.splice(index, 1); // Remove the accepted job from the jobs array
+      updatedJobs.splice(index, 1);
       return updatedJobs;
     });
   };
 
-  // Handle declining a booking, simply removing it from available jobs
   const declineBooking = (index) => {
     setJobs((prev) => {
       const updatedJobs = [...prev];
-      updatedJobs.splice(index, 1); // Remove the declined job from the jobs array
+      updatedJobs.splice(index, 1);
       return updatedJobs;
     });
   };
 
-  return (
-    <div className="flex h-screen bg-gray-100">
-      {/* Sidebar */}
-      <div className="bg-[#4B49AC] text-white w-64 p-5 flex flex-col">
-        <h1 className="text-lg font-bold mb-5">Home Care Connect</h1>
-        <ul>
-          <li className="mb-4 hover:text-gray-300 cursor-pointer" >Home</li>
-          <li className="mb-4 hover:text-gray-300 cursor-pointer">Dashboard</li>
-          <li className="mb-4 hover:text-gray-300 cursor-pointer" onClick={() => navigate('/provider/ProviderHelp')}>Help</li>
-          <li className="mb-4 hover:text-gray-300 cursor-pointer" onClick={() => navigate('/provider/ProviderProfile')}>Profile</li>
-          <li className="hover:text-gray-300 cursor-pointer">Logout</li>
-        </ul>
-      </div>
+  const handleLogout = async () => {
+    await signOut(auth);
+    navigate('/login/ProviderLogin');
+  };
 
-      {/* Main Content */}
-      <div className="flex-1 p-5">
-        {/* Navbar */}
-        <div className="flex items-center justify-between mb-5">
-          <div className="flex items-center">
-            <span className="text-2xl mr-2">🏠</span>
-            <h1 className="text-2xl font-bold">Provider Dashboard</h1>
+  const navItems = [
+    { icon: Briefcase, label: 'Dashboard', path: '/provider/ProviderDashboard' },
+    { icon: HelpCircle, label: 'Help', path: '/provider/ProviderHelp' },
+    { icon: User, label: 'Profile', path: '/provider/ProviderProfile' },
+  ];
+
+  const sidebarNav = (
+    <aside className="w-64 bg-gradient-to-b from-violet-700 to-violet-800 text-white flex flex-col">
+      <div className="p-6 border-b border-violet-600">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center">
+            <Briefcase className="h-6 w-6" />
           </div>
-          <span className="text-2xl">👤</span>
+          <span className="text-xl font-bold">Home Care Connect</span>
         </div>
-
-        {/* Job Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
-          {jobs.length > 0 ? (
-            jobs.slice(0, 3).map((job, index) => (
-              <div key={job.id} className="bg-white p-4 rounded-lg shadow-lg hover:shadow-xl transition duration-300">
-                <h2 className="font-bold mb-2">Customer Profile</h2>
-                <p><strong>Name:</strong> {job.username}</p>
-                <p><strong>Email:</strong> {job.userEmail}</p>
-                <p><strong>Phone:</strong> {job.phoneNumber}</p>
-                <p><strong>Date:</strong> {job.bookingDate}</p>
-                <p><strong>Time:</strong> {job.bookingTime}</p>
-                <p><strong>Location:</strong> {job.location}</p>
-                <div className="flex justify-between mt-4 gap-4">
-                  <button className="bg-[#7978E9] text-white rounded px-4 py-2 hover:bg-[#4B49AC] transition duration-300" onClick={() => acceptBooking(index)}>Accept</button>
-                  <button className="bg-[#F3797E] text-white rounded px-4 py-2 hover:bg-[#F3A4A4] transition duration-300" onClick={() => declineBooking(index)}>Decline</button>
-                </div>
-              </div>
-            ))
-          ) : (
-            <div className="col-span-3 text-center">No job requests available.</div>
-          )}
-        </div>
-
-        {/* Availability Toggle */}
-        <div className="flex items-center mb-5">
-          <label className="mr-2">Is Available:</label>
-          <input
-            type="checkbox"
-            checked={isAvailable}
-            onChange={() => setIsAvailable(!isAvailable)} // Toggle provider availability
-            className="toggle-checkbox"
-          />
-        </div>
-
-        {/* Previous Bookings Button */}
-        <button
-          className="bg-[#98BDFF] text-white rounded px-4 py-2 hover:bg-[#4B49AC] transition duration-300"
-          onClick={() => setShowModal(true)} // Show modal with previous bookings
-        >
-          Previous Bookings
+      </div>
+      <nav className="flex-1 p-4 space-y-1">
+        {navItems.map((item) => (
+          <button key={item.label} onClick={() => navigate(item.path)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all ${isActive(item.path) ? 'bg-white/15' : 'hover:bg-white/10'}`}>
+            <item.icon className="h-5 w-5" />{item.label}
+          </button>
+        ))}
+        <button onClick={handleLogout}
+          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium text-red-300 hover:bg-red-500/20 transition-all mt-8">
+          <LogOut className="h-5 w-5" />Logout
         </button>
+      </nav>
+    </aside>
+  );
 
-        {/* Modal for Previous Bookings */}
-        {showModal && (
-          <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
-            <div className="bg-white p-5 rounded shadow-lg w-11/12 md:w-1/2">
-              <h2 className="text-lg font-bold mb-4">Previous Bookings</h2>
-              <table className="w-full">
-                <thead>
-                  <tr>
-                    <th className="border px-4 py-2">Customer Name</th>
-                    <th className="border px-4 py-2">Date</th>
-                    <th className="border px-4 py-2">Time</th>
-                    <th className="border px-4 py-2">Location</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {previousBookings.map((booking, index) => (
-                    <tr key={index}>
-                      <td className="border px-4 py-2">{booking.name}</td>
-                      <td className="border px-4 py-2">{booking.date}</td>
-                      <td className="border px-4 py-2">{booking.time}</td>
-                      <td className="border px-4 py-2">{booking.location}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-              <button className="mt-4 bg-red-500 text-white rounded px-4 py-2 hover:bg-red-700 transition duration-300" onClick={() => setShowModal(false)}>Close</button>
+  return (
+    <div className="flex h-screen bg-gray-50">
+      {sidebarNav}
+      <div className="flex-1 flex flex-col overflow-hidden">
+        {/* Header */}
+        <header className="bg-white shadow-sm px-6 py-4 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">Provider Dashboard</h1>
+            <p className="text-sm text-gray-500 mt-1">Manage your jobs and schedule</p>
+          </div>
+          <div className="flex items-center gap-4">
+            {auth.currentUser && (
+              <div className="text-right">
+                <p className="text-sm font-medium text-gray-900">{auth.currentUser.email}</p>
+                <p className="text-xs text-gray-500">Service Provider</p>
+              </div>
+            )}
+            <div className="w-10 h-10 bg-violet-100 rounded-full flex items-center justify-center">
+              <User className="h-5 w-5 text-violet-600" />
             </div>
           </div>
-        )}
+        </header>
+
+        <main className="flex-1 overflow-y-auto p-6">
+          {/* Availability Card */}
+          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 mb-6">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-4">
+                <div className={`w-12 h-12 rounded-full flex items-center justify-center ${isAvailable ? 'bg-green-100' : 'bg-gray-100'}`}>
+                  <span className={`w-4 h-4 rounded-full ${isAvailable ? 'bg-green-500' : 'bg-gray-400'}`}></span>
+                </div>
+                <div>
+                  <p className="font-semibold text-gray-900">{isAvailable ? 'Available' : 'Unavailable'}</p>
+                  <p className="text-sm text-gray-500">
+                    {isAvailable ? 'You will receive new job requests' : 'You won\'t receive new requests'}
+                  </p>
+                </div>
+              </div>
+              <label className="relative inline-flex items-center cursor-pointer">
+                <input type="checkbox" checked={isAvailable} onChange={handleAvailabilityToggle}
+                  className="sr-only peer" />
+                <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-violet-100 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-violet-600"></div>
+              </label>
+            </div>
+          </div>
+
+          {/* Job Requests */}
+          <div className="mb-6">
+            <h2 className="text-lg font-bold text-gray-900 mb-4">Job Requests</h2>
+            {jobs.length > 0 ? (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {jobs.map((job, index) => (
+                  <div key={job.id} className="bg-white rounded-2xl shadow-sm border border-gray-100 p-5">
+                    <div className="flex items-center gap-3 mb-4">
+                      <div className="w-10 h-10 rounded-full bg-violet-100 flex items-center justify-center">
+                        <User className="h-5 w-5 text-violet-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">{job.username || 'Unknown'}</p>
+                        <p className="text-xs text-gray-500">{job.userEmail}</p>
+                      </div>
+                    </div>
+                    <div className="space-y-2 text-sm mb-4">
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Phone:</span>
+                        <span className="text-gray-900 font-medium">{job.phoneNumber || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Date:</span>
+                        <span className="text-gray-900 font-medium">{job.bookingDate || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Time:</span>
+                        <span className="text-gray-900 font-medium">{job.bookingTime || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-gray-500">Location:</span>
+                        <span className="text-gray-900 font-medium">{job.location || 'N/A'}</span>
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button onClick={() => acceptBooking(index)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-green-600 hover:bg-green-700 text-white rounded-xl text-sm font-medium transition-all">
+                        <CheckCircle className="h-4 w-4" />Accept
+                      </button>
+                      <button onClick={() => declineBooking(index)}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl text-sm font-medium transition-all">
+                        <XCircle className="h-4 w-4" />Decline
+                      </button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-12 text-center">
+                <Briefcase className="h-12 w-12 text-gray-300 mx-auto mb-4" />
+                <h3 className="text-lg font-semibold text-gray-900 mb-2">No job requests</h3>
+                <p className="text-gray-500">New job requests will appear here</p>
+              </div>
+            )}
+          </div>
+
+          {/* Previous Bookings Button */}
+          {previousBookings.length > 0 && (
+            <button onClick={() => setShowModal(true)}
+              className="w-full py-3 bg-violet-50 hover:bg-violet-100 text-violet-700 rounded-xl font-medium transition-all border border-violet-200">
+              Previous Bookings ({previousBookings.length})
+            </button>
+          )}
+
+          {/* Modal */}
+          {showModal && (
+            <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4" onClick={() => setShowModal(false)}>
+              <div className="bg-white rounded-2xl shadow-xl max-w-2xl w-full max-h-[80vh] overflow-hidden" onClick={(e) => e.stopPropagation()}>
+                <div className="p-6 border-b border-gray-100 flex items-center justify-between">
+                  <h2 className="text-xl font-bold text-gray-900">Previous Bookings</h2>
+                  <button onClick={() => setShowModal(false)} className="p-2 hover:bg-gray-100 rounded-xl transition-all">
+                    <X className="h-5 w-5 text-gray-500" />
+                  </button>
+                </div>
+                <div className="overflow-y-auto max-h-[60vh] p-6">
+                  {previousBookings.length > 0 ? (
+                    <table className="w-full">
+                      <thead>
+                        <tr className="text-left text-sm text-gray-500 border-b border-gray-100">
+                          <th className="pb-3 font-medium">Customer</th>
+                          <th className="pb-3 font-medium">Date</th>
+                          <th className="pb-3 font-medium">Time</th>
+                          <th className="pb-3 font-medium">Location</th>
+                        </tr>
+                      </thead>
+                      <tbody className="text-sm">
+                        {previousBookings.map((booking, index) => (
+                          <tr key={index} className="border-b border-gray-50">
+                            <td className="py-3 font-medium text-gray-900">{booking.name}</td>
+                            <td className="py-3 text-gray-600">{booking.date}</td>
+                            <td className="py-3 text-gray-600">{booking.time}</td>
+                            <td className="py-3 text-gray-600">{booking.location}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  ) : (
+                    <p className="text-gray-500 text-center py-8">No previous bookings yet</p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </main>
       </div>
     </div>
   );
-};
-
-export default ProviderDashboard;
+}

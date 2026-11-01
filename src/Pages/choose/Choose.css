@@ -1,135 +1,222 @@
-/* .title{
-    background-color: aqua;
-    justify-content: center;
-    align-items: center;
-    font-size: large;
-    font-family: Arial, Helvetica, sans-serif;
-    text-align: center;
+/* Choose Your Role Page - Refined Styles */
 
+/* Main Container */
+.choose-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #F9FAFB 0%, #EEF2FF 100%);
+  display: flex;
+  flex-direction: column;
 }
- .card-container {
-    width:15rem;
-    border-radius:1rem;
-    box-shadow: 0px 10px 8 px #999;
-    display:flex;
-    flex-direction: column;
-    margin:0.5rem;
-    background-color: white;
-    height:fit-content;
-} */
- /* .card-title{ */
- /* .card-container h3{
-    margin:0.5rem 5%;
 
+/* Header */
+.choose-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.5rem 2rem;
+  max-width: 1280px;
+  margin: 0 auto;
 }
-.card-container p{
-    margin:0.5rem 5%;
+
+.choose-back-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: white;
+  border: 1px solid #E5E7EB;
+  color: #4F46E5;
+  cursor: pointer;
+  transition: all 0.2s;
 }
-.card-container a{
-    text-align:center;
-    width:90%;
-    border-radius:5px;
-    padding:0.5rem 1rem;
-    background-color: rgb(105, 105, 241);
-    color:black;
-    text-decoration: none;
-    margin:0.5rem;
-}   */
-   /* Title styling */
-.title {
-    text-align: center;
-    margin-top: 20px;
-    margin-bottom: 40px;
+
+.choose-back-btn:hover {
+  background: #EEF2FF;
+  transform: translateY(-1px);
+}
+
+.choose-logo {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+  transition: transform 0.2s;
+}
+
+.choose-logo:hover {
+  transform: translateY(-2px);
+}
+
+.choose-logo-text {
+  margin-left: 8px;
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #4F46E5;
+}
+
+/* Main Content */
+.choose-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 3rem 2rem;
+  max-width: 1280px;
+  margin: 0 auto;
+}
+
+.choose-title {
+  font-size: 2.5rem;
+  font-weight: 800;
+  color: #1F2937;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.choose-subtitle {
+  font-size: 1.125rem;
+  color: #6B7280;
+  margin-bottom: 2.5rem;
+  text-align: center;
+  max-width: 600px;
+}
+
+/* Cards Container */
+.choose-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  gap: 2rem;
+  width: 100%;
+  max-width: 1000px;
+}
+
+/* Card Styles */
+.choose-card {
+  background: white;
+  border-radius: 16px;
+  padding: 2rem;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.05);
+  transition: all 0.3s;
+}
+
+.choose-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.1);
+}
+
+.choose-card-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.choose-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+}
+
+.customer-icon {
+  background: rgba(79, 70, 229, 0.1);
+  color: #4F46E5;
+}
+
+.provider-icon {
+  background: rgba(124, 58, 237, 0.1);
+  color: #7C3AED;
+}
+
+.choose-card-title {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: #1F2937;
+  margin-bottom: 0.75rem;
+}
+
+.choose-card-description {
+  font-size: 1rem;
+  color: #6B7280;
+  line-height: 1.5;
+  margin-bottom: 2rem;
+}
+
+/* Buttons */
+.choose-card-actions {
+  display: flex;
+  gap: 1rem;
+}
+
+.choose-btn {
+  flex: 1;
+  padding: 0.75rem 1.5rem;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: none;
+}
+
+.choose-btn-primary {
+  background: #4F46E5;
+  color: white;
+}
+
+.choose-btn-primary:hover {
+  background: #4338CA;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(79, 70, 229, 0.25);
+}
+
+.choose-btn-secondary {
+  background: white;
+  color: #4F46E5;
+  border: 1px solid #4F46E5;
+}
+
+.choose-btn-secondary:hover {
+  background: #EEF2FF;
+}
+
+.provider-btn {
+  background: #7C3AED;
+  color: white;
+}
+
+.provider-btn:hover {
+  background: #6D28C9;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px -2px rgba(124, 58, 237, 0.25);
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .choose-header {
+    padding: 1rem;
   }
-  
-  .title h1 {
-    font-size: 32px;
-    color: #333;
+
+  .choose-content {
+    padding: 2rem 1rem;
   }
-  
-  /* Container styling */
-   .container_choose {
-    display: flex;
-    flex-direction: row;
-    justify-content: center;
-    gap: 20px;
-    padding: 20px;
-    background-color: rgb(195, 195, 245);
-    margin-left: 13%;
-    margin-right: 10%;
-    border-radius: 20px;
-    height:fit-content;
-    margin-top: 5%;
+
+  .choose-title {
+    font-size: 2rem;
   }
-  
-  /* Card container common styling */
-  .card-container-1,
-  .card-container-2 {
-    background-color: #f9f9f9;
-    border-radius: 10px;
-    padding: 20px;
-    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-    max-width: 300px;
-    text-align: center;
-    transition: transform 0.3s ease, box-shadow 0.3s ease;
-    margin-bottom: 10%;
-    margin-top: 5%;
+
+  .choose-subtitle {
+    font-size: 1rem;
   }
-  
-  .card-container-1:hover,
-  .card-container-2:hover {
-    transform: scale(1.05);
-    box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+
+  .choose-cards {
+    grid-template-columns: 1fr;
   }
-  
-  /* Title in card */
-  .card-title {
-    font-size: 24px;
-    color: #333;
-    margin-bottom: 10px;
-    font-weight: bold;
+
+  .choose-card {
+    padding: 1.5rem;
   }
-  
-  /* Description styling */
-  .card-description {
-    font-size: 16px;
-    color: #777;
-    margin-bottom: 20px;
-    line-height: 1.5;
-  }
-  
-  /* Button styling */
-  .card-btn {
-    display: inline-block;
-    background-color: #007bff;
-    color: white;
-    padding: 10px 20px;
-    border-radius: 5px;
-    text-decoration: none;
-    font-size: 16px;
-    transition: background-color 0.3s ease;
-  }
-  
-  .card-btn:hover {
-    background-color: #0056b3;
-  }
-  .two_buttons{
-    display:flex;
-    align-items: center;
-    justify-content: center;
-    gap:15px;
-  }
-  
-  /* Responsive design for smaller screens */
-  @media (max-width: 768px) {
-    .container {
-      flex-direction: column;
-      align-items: center;
-    }
-    
-    .card-container-1,
-    .card-container-2 {
-      margin-bottom: 20px;
-    }
-  }
-    
+}
