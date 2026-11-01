@@ -69,9 +69,10 @@ export default function HomePage() {
                 Trusted Platform Since 2023
               </span>
             </div>
-            <h1 className="text-5xl md:text-6xl font-bold mb-6 text-gray-900">
+            <h2 className="text-5xl md:text-6xl font-bold mb-6 text-gray-900" aria-hidden="true">
               Find Your Perfect Home Service
-            </h1>
+            </h2>
+            <h1 className="sr-only">Home Care Connect - Find Trusted Home Service Professionals</h1>
             <p className="text-xl text-gray-600 max-w-3xl mx-auto mb-10">
               Connect with top-rated, verified service professionals for cleaning, plumbing, and electrical work. Schedule, book, and enjoy quality service at your doorstep.
             </p>

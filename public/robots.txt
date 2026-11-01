@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Allow: /static/
+Disallow: /login/
+Disallow: /provider/
+Disallow: /admin/
+Disallow: /create-profile/
+
+User-agent: Googlebot
+Allow: /
+
+Sitemap: https://www.homecareconnect.com/sitemap.xml
