@@ -1,3 +1,16 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Keep page text selectable without showing a text caret outside editable controls. */
+* {
+  caret-color: transparent;
+}
+
+input,
+textarea,
+select,
+[contenteditable="true"],
+[role="textbox"] {
+  caret-color: auto;
+}
