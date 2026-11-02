@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Home, HelpCircle, User, LogOut, Briefcase, Phone, Mail, Edit3, Check, X } from 'lucide-react';
+import { HelpCircle, User, LogOut, Briefcase, Phone, Mail, Edit3, Check, X } from 'lucide-react';
 import { auth, db } from '../../firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import { onAuthStateChanged, signOut } from 'firebase/auth';

@@ -4,7 +4,7 @@ import { db } from '../../firebase';
 import { collection, getDocs, doc, updateDoc } from 'firebase/firestore';
 import { signOut } from 'firebase/auth';
 import { auth } from '../../firebase';
-import { Home, HelpCircle, User, LogOut, Briefcase, X, CheckCircle, XCircle } from 'lucide-react';
+import { HelpCircle, User, LogOut, Briefcase, X, CheckCircle, XCircle } from 'lucide-react';
 
 export default function ProviderDashboard() {
   const navigate = useNavigate();
@@ -12,7 +12,6 @@ export default function ProviderDashboard() {
 
   const [jobs, setJobs] = useState([]);
   const [isAvailable, setIsAvailable] = useState(true);
-  const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
   const [previousBookings, setPreviousBookings] = useState([]);
   const [providerEmail, setProviderEmail] = useState(null);
@@ -40,8 +39,6 @@ export default function ProviderDashboard() {
       }
     } catch (e) {
       console.error('Error fetching availability:', e);
-    } finally {
-      setLoading(false);
     }
   };
 
